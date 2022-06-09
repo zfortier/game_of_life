@@ -19,9 +19,14 @@ object itself, but the underlying dictionary data (the LifeBoard object is
 rebuilt from the file. See the docstring under the LifeBoard class).
 """
 
-BOARD_START_SIZE=100 # square board
+LIVE_CELL_GLYPH = "*"
+DEAD_CELL_GLYPH = " "
+BOARD_START_SIZE = 100 # square board
+BOARD_MAX_SIZE = 1000 # cells die when they reach the edge
 SAVE_FF_CHOICES = False
 MAX_SIZE = float("inf")
+EDGE_BUF_SIZE = 2
+
 
 class LifeBoard(dict):
     """
@@ -34,11 +39,13 @@ class LifeBoard(dict):
     The number of rows is given as variable `height`, with the table growing
     from row 0 downward, so that the maximum index in the dictionary will be
     `height - 1` with all intermediate row numbers included as keys (even if
-    they are empty). The board is automatically expanded and contracted to
-    allow live cells to multiply freely. An empty buffer region of 2 rows is
-    maintained on both the top and bottom of the grid (no buffer is needed on
-    the left/right sides).
+    they are empty). The board is automatically resized, allowing live cells to
+    multiply freely. An empty buffer region is maintained on both the top and
+    bottom of the grid (no buffer is needed on the left/right sides).
     """
+
+    live_cell = f" {LIVE_CELL_GLYPH}"
+    dead_cell = f" {DEAD_CELL_GLYPH}"
 
     def __init__(self, start_height=None, source_file=None):
         """
@@ -75,12 +82,12 @@ class LifeBoard(dict):
     def __str__(self):
         ret_val = "\n"
         for row_num in range(self.height):
-            for col_num in range(self.min_max["max"] - 2,
-                                 self.min_max["min"] + 2):
+            for col_num in range(self.min_max["max"] - EDGE_BUF_SIZE,
+                                 self.min_max["min"] + EDGE_BUF_SIZE):
                 if col_num in self[row_num]:
-                    ret_val += " *"
+                    ret_val += self.live_cell
                 else:
-                    ret_val += " ."
+                    ret_val += self.dead_cell
             ret_val += "\n"
         ret_val += f"\nheight: {self.height}, " \
               + f"width: {self.min_max['min'] - self.min_max['max'] + 1}, " \
@@ -92,26 +99,26 @@ class LifeBoard(dict):
         """
         First expands the board as needed, then shrinks as needed.
         Automatically expand the board from the top and bottom so that there is
-        always a buffer of 2 empty rows on both sides.
-        Prunes rows from the top and bottom of the board until a buffer of 2
-        empty rows is achieved on both sides.
+        always a buffer of empty rows on both sides.
+        Prunes rows from the top and bottom of the board to maintain the right
+        empty buffer size on each side.
         """
         # Expand first...
-        while self[0] or self[1]: # live cells in top 2 rows
+        while any(self[n] for n in range(EDGE_BUF_SIZE)):
             for row_num in range(self.height, 0, -1):
                 self[row_num] = self[row_num - 1]
             self[0] = set()
             self.height += 1
-        while self[self.height - 1] or self[self.height - 2]:
+        while any(self[self.height - n] for n in range(1, EDGE_BUF_SIZE + 1)):
             self[self.height] = set()
             self.height += 1
         # ...then shrink
-        while not self[2]: # top 2 rows have no live cells
+        while not self[EDGE_BUF_SIZE]: # top 2 rows have no live cells
             self.pop(0)
             for row_num in range(1, self.height):
                 self[row_num - 1] = self[row_num]
             self.height -= 1
-        while not self[self.height - 3]:
+        while not self[self.height - EDGE_BUF_SIZE + 1]:
             self.pop(self.height - 1)
             self.height -= 1
 
